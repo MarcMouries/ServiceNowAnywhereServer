@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sys_ws_operation">
+    <sys_ws_operation action="INSERT_OR_UPDATE">
+        <active>true</active>
+        <consumes>application/json,application/xml,text/xml</consumes>
+        <consumes_customized>false</consumes_customized>
+        <default_operation_uri/>
+        <enforce_acl>cf9d01d3e73003009d6247e603f6a990</enforce_acl>
+        <http_method>PATCH</http_method>
+        <name>UpdateRecord</name>
+        <operation_script><![CDATA[/**
+ * Scripted REST Resource: /update/{table_name}/{sys_id}
+ */
+(function process(request, response) {
+    // Extract the table name and record sys_id from the request path parameters
+    var tableName = request.pathParams.table_name;
+    var recordSysId = request.pathParams.sys_id;
+
+    // Initialize an array to collect missing parameters
+    var missingParams = [];
+
+    // Check if table_name is missing
+    if (!tableName) {
+        missingParams.push('table_name');
+    }
+
+    // Check if sys_id is missing
+    if (!recordSysId) {
+        missingParams.push('sys_id');
+    }
+
+    // If any parameters are missing, return an error response
+    if (missingParams.length > 0) {
+        response.setStatus(400);
+        response.setBody({
+            status: 'error',
+            message: 'Missing required parameter(s): ' + missingParams.join(', ')
+        });
+        return;
+    }
+
+    // Parse the request body data
+    var requestBody = request.body.data;
+
+    // Ensure the request body contains data to update
+    if (!requestBody || Object.keys(requestBody).length === 0) {
+        response.setStatus(400);
+        response.setBody({
+            status: 'error',
+            message: 'Request body is empty'
+        });
+        return;
+    }
+
+    // Query the record in the specified table with the provided sys_id
+    var gr = new GlideRecord(tableName);
+    if (!gr.get(recordSysId)) {
+        response.setStatus(404);
+        response.setBody({
+            status: 'error',
+            message: 'Record not found'
+        });
+        return;
+    }
+
+    // Loop through the fields in the request body and update the record
+    for (var field in requestBody) {
+        if (gr.isValidField(field)) {
+            gr.setValue(field, requestBody[field]);
+        } else {
+            response.setStatus(400);
+            response.setBody({
+                status: 'error',
+                message: 'Invalid field: ' + field
+            });
+            return;
+        }
+    }
+
+    // Update the record in the database
+    gr.update();
+
+    // Respond with a 200 status and confirmation of success
+    response.setStatus(200);
+    response.setBody({
+        status: 'success',
+        message: 'Record updated successfully'
+    });
+
+})(request, response);
+]]></operation_script>
+        <operation_uri>/api/x_omni_server/service/update/{table_name}/{sys_id}</operation_uri>
+        <produces>application/json,application/xml,text/xml</produces>
+        <produces_customized>false</produces_customized>
+        <relative_path>/update/{table_name}/{sys_id}</relative_path>
+        <request_example/>
+        <requires_acl_authorization>true</requires_acl_authorization>
+        <requires_authentication>true</requires_authentication>
+        <requires_snc_internal_role>true</requires_snc_internal_role>
+        <short_description/>
+        <sys_class_name>sys_ws_operation</sys_class_name>
+        <sys_created_by>Marc.Mouries</sys_created_by>
+        <sys_created_on>2024-09-28 20:49:05</sys_created_on>
+        <sys_id>a0516be3fb7c5e107b04ff4655efdc84</sys_id>
+        <sys_mod_count>3</sys_mod_count>
+        <sys_name>UpdateRecord</sys_name>
+        <sys_package display_value="Omni Server" source="x_omni_server">0db9bcad3b274a101052e5d964e45a21</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="Omni Server">0db9bcad3b274a101052e5d964e45a21</sys_scope>
+        <sys_update_name>sys_ws_operation_a0516be3fb7c5e107b04ff4655efdc84</sys_update_name>
+        <sys_updated_by>Marc.Mouries</sys_updated_by>
+        <sys_updated_on>2024-09-28 21:14:28</sys_updated_on>
+        <web_service_definition display_value="service">d65d932ffb8096107b04ff4655efdc28</web_service_definition>
+        <web_service_version/>
+    </sys_ws_operation>
+</record_update>
