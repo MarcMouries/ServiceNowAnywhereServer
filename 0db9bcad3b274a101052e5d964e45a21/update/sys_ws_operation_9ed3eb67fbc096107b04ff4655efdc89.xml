@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sys_ws_operation">
+    <sys_ws_operation action="INSERT_OR_UPDATE">
+        <active>true</active>
+        <consumes>application/json,application/xml,text/xml</consumes>
+        <consumes_customized>false</consumes_customized>
+        <default_operation_uri/>
+        <enforce_acl>cf9d01d3e73003009d6247e603f6a990</enforce_acl>
+        <http_method>GET</http_method>
+        <name>GetUserAppTablesAccess</name>
+        <operation_script><![CDATA[(function process(request, response) {
+    var username = request.queryParams.username; // Get the username from the request
+    var appScope = request.queryParams.app_scope; // Get the app scope from the request
+
+    if (!username || !appScope) {
+        response.setStatus(400);
+        response.setBody({ error: "Missing parameter(s): 'username' and/or 'app_scope' " });
+        return;
+    }
+
+    var userTables = getUserTablesAccess(username, appScope);
+
+    if (userTables === null) {
+        response.setStatus(404);
+        response.setBody({ error: "User not found or no roles assigned, or invalid app scope." });
+    } else {
+        response.setBody(userTables);
+    }
+
+    function getUserTablesAccess(username, appScope) {
+        var userGR = new GlideRecord('sys_user');
+        userGR.addQuery('user_name', username);
+        userGR.query();
+
+        if (!userGR.next()) {
+            return null;
+        }
+
+        var userSysId = userGR.sys_id.toString();
+        var userRoles = new Set();
+        var rolesGR = new GlideRecord('sys_user_has_role');
+        rolesGR.addQuery('user', userSysId);
+        rolesGR.query();
+
+        while (rolesGR.next()) {
+            userRoles.add(rolesGR.role.name.toString());
+        }
+
+        if (userRoles.size === 0) {
+            return null;
+        }
+
+        var appGR = new GlideRecord('sys_scope');
+        appGR.addQuery('scope', appScope);
+        appGR.query();
+
+        if (!appGR.next()) {
+            return null;
+        }
+
+        var appSysId = appGR.sys_id.toString();
+        var accessList = [];
+
+        var tableGR = new GlideRecord('sys_db_object');
+        tableGR.addQuery('sys_scope', appSysId);
+		tableGR.orderBy('name');
+
+        tableGR.query();
+
+        var tableInfo = [];
+        while (tableGR.next()) {
+            tableInfo.push({
+                label: tableGR.label.toString(),
+                name: tableGR.name.toString()
+            });
+        }
+
+        var aclGR = new GlideRecord('sys_security_acl');
+        aclGR.addQuery('name', 'IN', tableInfo.map(t => t.name).join(','));
+        aclGR.addQuery('type', 'record');
+        aclGR.addQuery('operation', 'IN', 'create,read');
+        aclGR.query();
+
+        var aclMap = {};
+        while (aclGR.next()) {
+            var tableName = aclGR.name.toString();
+            var operation = aclGR.operation.toString();
+            var aclSysId = aclGR.sys_id.toString();
+
+            if (!aclMap[tableName]) {
+                aclMap[tableName] = {};
+            }
+
+            if (!aclMap[tableName][operation]) {
+                aclMap[tableName][operation] = [];
+            }
+
+            aclMap[tableName][operation].push(aclSysId);
+        }
+
+        for (var i = 0; i < tableInfo.length; i++) {
+            var table = tableInfo[i];
+            var hasAccess = false;
+
+            var operations = ['create', 'read'];
+            for (var j = 0; j < operations.length; j++) {
+                var operation = operations[j];
+                if (aclMap[table.name] && aclMap[table.name][operation]) {
+                    for (var k = 0; k < aclMap[table.name][operation].length; k++) {
+                        if (userHasAccessToACL(userRoles, aclMap[table.name][operation][k])) {
+                            hasAccess = true;
+                            break;
+                        }
+                    }
+                }
+                if (hasAccess) {
+                    break;
+                }
+            }
+
+            if (hasAccess) {
+                accessList.push({
+                    label: table.label,
+                    name: table.name
+                });
+            }
+        }
+
+        return accessList;
+    }
+
+    function userHasAccessToACL(userRoles, aclSysId) {
+        var aclRoleGR = new GlideRecord('sys_security_acl_role');
+        aclRoleGR.addQuery('sys_security_acl', aclSysId);
+        aclRoleGR.query();
+
+        while (aclRoleGR.next()) {
+            var aclRole = aclRoleGR.sys_user_role.name.toString();
+            if (userRoles.has(aclRole)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+})(request, response);
+]]></operation_script>
+        <operation_uri>/api/x_omni_server/service/user-app-tables-access</operation_uri>
+        <produces>application/json,application/xml,text/xml</produces>
+        <produces_customized>false</produces_customized>
+        <relative_path>/user-app-tables-access</relative_path>
+        <request_example/>
+        <requires_acl_authorization>false</requires_acl_authorization>
+        <requires_authentication>true</requires_authentication>
+        <requires_snc_internal_role>false</requires_snc_internal_role>
+        <short_description/>
+        <sys_class_name>sys_ws_operation</sys_class_name>
+        <sys_created_by>Marc.Mouries</sys_created_by>
+        <sys_created_on>2024-08-22 14:16:09</sys_created_on>
+        <sys_id>9ed3eb67fbc096107b04ff4655efdc89</sys_id>
+        <sys_mod_count>5</sys_mod_count>
+        <sys_name>GetUserAppTablesAccess</sys_name>
+        <sys_package display_value="Omni Server" source="x_omni_server">0db9bcad3b274a101052e5d964e45a21</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="Omni Server">0db9bcad3b274a101052e5d964e45a21</sys_scope>
+        <sys_update_name>sys_ws_operation_9ed3eb67fbc096107b04ff4655efdc89</sys_update_name>
+        <sys_updated_by>Marc.Mouries</sys_updated_by>
+        <sys_updated_on>2024-08-28 13:38:35</sys_updated_on>
+        <web_service_definition display_value="service">d65d932ffb8096107b04ff4655efdc28</web_service_definition>
+        <web_service_version/>
+    </sys_ws_operation>
+</record_update>

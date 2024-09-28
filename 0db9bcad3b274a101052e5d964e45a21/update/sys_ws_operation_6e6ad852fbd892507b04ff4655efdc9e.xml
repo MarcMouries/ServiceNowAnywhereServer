@@ -1,0 +1,446 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sys_ws_operation">
+    <sys_ws_operation action="INSERT_OR_UPDATE">
+        <active>true</active>
+        <consumes>application/json,application/xml,text/xml</consumes>
+        <consumes_customized>false</consumes_customized>
+        <default_operation_uri/>
+        <enforce_acl>cf9d01d3e73003009d6247e603f6a990</enforce_acl>
+        <http_method>GET</http_method>
+        <name>GetTableData</name>
+        <operation_script><![CDATA[/**
+ * Scripted REST Resource: /data/{table_name}/{sys_id}
+ * 
+ * If a sys_id is provided, we return one record; otherwise, we return a list of records.
+ * If a single record is requested, we return all the fields in the Form View.
+ * If multiple records are requested, we return all the fields in the List View.
+ * 
+ * 
+
+var request = {
+    pathParams: {
+        table_name: 'x_omni_demo_inspct_reason'
+    },
+    queryParams: {
+        sys_id: '0157609633d4de104890955a7e5c7b98' // You can remove this line to test multiple records
+    }
+};
+
+var response = {
+    setStatus: function(status) {
+        gs.info('Status: ' + status);
+    },
+    setBody: function(body) {
+        gs.info('Body: ' + JSON.stringify(body, null, 4));
+    }
+};
+ * 
+ * 
+ */
+(function process(request, response) {
+    var tableName = request.pathParams.table_name;
+    var recordSysId = request.queryParams.sys_id ? request.queryParams.sys_id[0] : null;
+    //gs.error('REST: @@ Processing Record with sys_id: [' + recordSysId + '] in table: [' + tableName + ']');
+    //gs.error('REST: @@ Processing request.pathParams : ' + JSON.stringify(request.pathParams));
+    //gs.error('REST: @@ Processing request.queryParams : ' + JSON.stringify(request.queryParams));
+
+
+
+    if (!tableName) {
+        response.setStatus(400);
+        response.setBody({
+            status: 'error',
+            message: 'Missing required parameter: table_name'
+        });
+        return;
+    }
+
+    if (recordSysId) {
+        // Fetch a single record using the form view
+        var formView = getFormView(tableName, "Default view");
+        if (formView.status === 'error') {
+            response.setStatus(404);
+            response.setBody({
+                status: 'error',
+                message: formView.message
+            });
+            return;
+        }
+
+        var result = getSingleRecord(tableName, recordSysId, formView.elements);
+		result.fields = getRecordFields(tableName, recordSysId, formView.elements);
+        if (!result || !result.record) {
+
+            response.setStatus(404);
+            response.setBody({
+                status: 'error',
+                message: 'Record with sys_id: ' + recordSysId + ' not found'
+            });
+            return;
+        }
+
+        response.setStatus(200);
+        response.setBody({
+            status: 'success',
+            message: 'Record data retrieved successfully.',
+            tableName: tableName,
+            record: result.record,
+            schema: result.schema.columns,
+			fields: result.fields
+        });
+    } else {
+        // Fetch a list of records using the list view
+        var listView = getListView(tableName);
+        if (listView.status === 'error') {
+            response.setStatus(404);
+            response.setBody({
+                status: 'error',
+                message: listView.message
+            });
+            return;
+        }
+
+        var schemaResult = getTableSchema(listView.elements, tableName);
+        var records = getTableRecords(tableName, schemaResult.columns);
+
+        response.setStatus(200);
+        response.setBody({
+            status: 'success',
+            message: 'Table data retrieved successfully.',
+            tableName: tableName,
+            schema: schemaResult.columns,
+            records: records
+        });
+    }
+
+    // Function to get the list view elements
+    function getListView(tableName) {
+        var listViewGR = new GlideRecord('sys_ui_list');
+        listViewGR.addQuery('name', tableName);
+        listViewGR.addQuery('view', "Default view");
+        listViewGR.query();
+
+        if (!listViewGR.hasNext()) {
+            return {
+                status: 'error',
+                message: 'No list view found for the given table: ' + tableName,
+                elements: []
+            };
+        }
+
+        var result = {
+            status: 'success',
+            message: 'List view found for the given table.',
+            elements: []
+        };
+
+        while (listViewGR.next()) {
+            var sysId = listViewGR.sys_id.toString();
+
+            var listElementGR = new GlideRecord('sys_ui_list_element');
+            listElementGR.addQuery('list_id', sysId);
+            listElementGR.orderBy('position');
+            listElementGR.query();
+
+            while (listElementGR.next()) {
+                result.elements.push(listElementGR.element.toString());
+            }
+        }
+
+        return result;
+    }
+
+    // Function to get the form view elements
+    function getFormView(tableName, viewName) {
+        var sectionGR = new GlideRecord('sys_ui_section');
+        sectionGR.addQuery('name', tableName);
+        sectionGR.addQuery('view', viewName);
+        sectionGR.query();
+
+        if (!sectionGR.next()) {
+            return {
+                status: 'error',
+                message: 'No section found for the specified table and view.'
+            };
+        }
+
+        var sectionId = sectionGR.sys_id.toString();
+
+        var result = {
+            status: 'success',
+            message: 'Form view found for the given table and view.',
+            elements: []
+        };
+
+        var elementGR = new GlideRecord('sys_ui_element');
+        elementGR.addQuery('sys_ui_section', sectionId);
+        elementGR.orderBy('position');
+        elementGR.query();
+
+        while (elementGR.next()) {
+            result.elements.push(elementGR.element.toString());
+        }
+
+        return result;
+    }
+
+    function getReferenceValues(referenceTable) {
+        var references = [];
+        var gr = new GlideRecord(referenceTable);
+        gr.orderBy(gr.getDisplayName());
+        gr.query();
+        while (gr.next()) {
+            references.push({
+                sys_id: gr.getValue('sys_id'),
+                display_value: gr.getDisplayValue()
+            });
+        }
+
+        return references;
+    }
+
+	// Function to get default values for fields from the sys_dictionary
+function getDefaultValue(tableName, fieldName) {
+    var defaultValue = null;
+    var dictGR = new GlideRecord('sys_dictionary');
+    dictGR.addQuery('name', tableName);
+    dictGR.addQuery('element', fieldName);
+    dictGR.query();
+    
+    if (dictGR.next()) {
+        defaultValue = dictGR.getValue('default_value');
+    }
+    
+    return defaultValue;
+}
+
+// get the choice list for a given field. if the field is not found on the current table, we search in its parent.
+function getChoices(tableName, fieldName) {
+    var choices = [];
+    
+    var choiceGR = new GlideRecord('sys_choice');
+    choiceGR.addQuery('name', tableName);
+    choiceGR.addQuery('element', fieldName);
+    choiceGR.orderBy('value'); // or  by 'sequence'
+    choiceGR.query();
+
+    while (choiceGR.next()) {
+        choices.push({
+            value: choiceGR.getValue('value'),
+            label: choiceGR.getValue('label')
+        });
+    }
+
+    if (choices.length === 0) {
+        var parentTable = new GlideTableHierarchy(tableName).getRoot();
+        if (parentTable) {
+            return getChoices(parentTable, fieldName);
+        }
+    }
+
+    return choices;
+}
+
+
+
+
+    // Function to get the table schema, column names, column labels, and column types
+    function getTableSchema(elements, tableName) {
+        var columns = [];
+        var gr = new GlideRecord(tableName);
+        gr.setLimit(1);
+        gr.query();
+
+        if (gr.next()) {
+            // Loop through the list view elements and construct the schema
+            elements.forEach(function(element) {
+                if (gr.isValidField(element)) {
+                    var field = gr.getElement(element);
+                    var column = {
+                        name: element,
+                        label: field.getLabel() || element, 
+                        type: field.getED().getInternalType() 
+                    };
+
+                    // Check if the field is a reference field
+                    if (column.type === 'reference') {
+                        column.reference_table = field.getED().getReference();
+                        column.reference_values = getReferenceValues(column.reference_table);
+                    }
+
+                    // Check if the field is a choice field
+                    if (field.getED().isChoiceTable()) {
+                        column.is_choice = true; 
+                        column.choices = getChoices(tableName, element); 
+                    }
+
+                    columns.push(column);
+                } else {
+                    gs.error('Field "' + element + '" is not a valid field in table: ' + tableName);
+                }
+            });
+        } else {
+            gs.error('No records found in table: ' + tableName + ' to inspect fields.');
+        }
+
+        return {
+            columns: columns
+        };
+    }
+
+
+    // Function to get table records based on the schema
+    function getTableRecords(tableName, columns) {
+        var records = [];
+        var recordGR = new GlideRecord(tableName);
+        recordGR.addQuery('sys_id', '!=', '');
+        recordGR.query();
+
+        while (recordGR.next()) {
+            var record = {
+                sys_id: recordGR.getValue('sys_id')
+            };
+            columns.forEach(function(column) {
+                if (column.type === 'reference') {
+                    record[column.name] = recordGR.getDisplayValue(column.name);
+                } else {
+                    record[column.name] = recordGR.getValue(column.name);
+                }
+            });
+            records.push(record);
+        }
+
+        return records;
+    }
+
+ // Function to get a single record by sys_id
+// Function to get a single record by sys_id
+function getSingleRecord(tableName, sys_id, elements) {
+    // Initialize record object with sys_id, even if it's "-1"
+    var record = {
+        sys_id: sys_id
+    };
+
+    // Check if sys_id is "-1", meaning we want to retrieve the schema without a record
+    if (sys_id === "-1") {
+        var schemaResult = getTableSchema(elements, tableName);
+        return {
+            schema: schemaResult,
+            record: record // Return the record with sys_id = -1
+        };
+    }
+
+    var recordGR = new GlideRecord(tableName);
+    var recordFound = recordGR.get(sys_id);
+
+    if (!recordFound) {
+        gs.error('REST: Record with sys_id: [' + sys_id + '] was NOT FOUND in table: [' + tableName + ']');
+        return {
+            status: "error",
+            message: 'Record with sys_id: ' + sys_id + ' not found'
+        };
+    }
+
+    // Populate the record object with values from the found record
+    schemaResult = getTableSchema(elements, tableName);
+    schemaResult.columns.forEach(function(column) {
+        record[column.name] = recordGR.getValue(column.name);
+    });
+
+    return {
+        schema: schemaResult,
+        record: record
+    };
+}
+
+function getRecordFields(tableName, sysId, selectedFields) {
+    var fields = {}; // Directly create the fields object
+
+    var includeDisplayValue = sysId !== '-1'; // Skip displayValue if sysId is -1
+
+    // Initialize GlideRecord for the given table and sys_id
+    var gr = new GlideRecord(tableName);
+    if (sysId !== '-1' && !gr.get(sysId)) {
+        gs.error("Record not found for sys_id: " + sysId);
+        return {}; // Return empty object if record doesn't exist
+    }
+
+    // Loop through the specified selectedFields and populate the object
+    for (var i = 0; i < selectedFields.length; i++) {
+        var fieldName = selectedFields[i];
+
+        // Check if the field exists and is valid
+        if (!gr.isValidField(fieldName)) {
+            gs.error("Field not found: " + fieldName);
+            continue;
+        }
+
+        var element = gr.getElement(fieldName);
+        var ed = element.getED(); // Get Element Descriptor (GlideElementDescriptor)
+
+        // Get the default value from sys_dictionary or infer for choice fields
+        var defaultValue = getDefaultValue(tableName, fieldName);
+        if (defaultValue === null && ed.isChoiceTable()) {
+            var choices = getChoices(tableName, fieldName);
+            if (choices.length > 0) {
+                defaultValue = choices[0].value; // Use first choice as default if available
+            }
+        }
+
+        // Build the field data object
+        var fieldData = {
+            label: element.getLabel(),
+            name: fieldName,
+            type: ed.getInternalType(),
+            originalValue: gr[fieldName], // Using direct GlideRecord field access
+            defaultValue: defaultValue, // Add the default value
+            mandatory: ed.isMandatory(), // Use the isMandatory method from the Element Descriptor
+            internalType: ed.getInternalType(),
+            isChoiceField: ed.isChoiceTable(),
+            choices: ed.isChoiceTable() ? getChoices(tableName, fieldName) : null // Get choices if it's a choice field
+        };
+
+        // Optionally add displayValue if sysId is not -1
+        if (includeDisplayValue) {
+            fieldData.displayValue = gr.getDisplayValue(fieldName);
+        }
+
+        // Handle reference fields
+        if (fieldData.type === 'reference') {
+            fieldData.reference_table = ed.getReference(); // Get reference table
+            fieldData.reference_values = getReferenceValues(fieldData.reference_table); // Get reference values from the reference table
+        }
+
+        // Add the field data to the fields object
+        fields[fieldName] = fieldData;
+    }
+
+    return fields;
+}
+
+
+})(request, response);]]></operation_script>
+        <operation_uri>/api/x_omni_server/service/data/{table_name}</operation_uri>
+        <produces>application/json,application/xml,text/xml</produces>
+        <produces_customized>false</produces_customized>
+        <relative_path>/data/{table_name}</relative_path>
+        <request_example/>
+        <requires_acl_authorization>true</requires_acl_authorization>
+        <requires_authentication>true</requires_authentication>
+        <requires_snc_internal_role>true</requires_snc_internal_role>
+        <short_description/>
+        <sys_class_name>sys_ws_operation</sys_class_name>
+        <sys_created_by>Marc.Mouries</sys_created_by>
+        <sys_created_on>2024-08-30 12:45:42</sys_created_on>
+        <sys_id>6e6ad852fbd892507b04ff4655efdc9e</sys_id>
+        <sys_mod_count>50</sys_mod_count>
+        <sys_name>GetTableData</sys_name>
+        <sys_package display_value="Omni Server" source="x_omni_server">0db9bcad3b274a101052e5d964e45a21</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="Omni Server">0db9bcad3b274a101052e5d964e45a21</sys_scope>
+        <sys_update_name>sys_ws_operation_6e6ad852fbd892507b04ff4655efdc9e</sys_update_name>
+        <sys_updated_by>Marc.Mouries</sys_updated_by>
+        <sys_updated_on>2024-09-11 14:45:46</sys_updated_on>
+        <web_service_definition display_value="service">d65d932ffb8096107b04ff4655efdc28</web_service_definition>
+        <web_service_version/>
+    </sys_ws_operation>
+</record_update>

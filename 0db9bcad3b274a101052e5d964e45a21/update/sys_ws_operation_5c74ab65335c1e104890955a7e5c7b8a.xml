@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sys_ws_operation">
+    <sys_ws_operation action="INSERT_OR_UPDATE">
+        <active>true</active>
+        <consumes>application/json,application/xml,text/xml</consumes>
+        <consumes_customized>false</consumes_customized>
+        <default_operation_uri/>
+        <enforce_acl>cf9d01d3e73003009d6247e603f6a990</enforce_acl>
+        <http_method>GET</http_method>
+        <name>GetTableSchema</name>
+        <operation_script><![CDATA[(function process(request, response) {
+    var tableName = request.queryParams.table_name;
+    
+    if (!tableName) {
+        response.setStatus(400);
+        response.setBody({
+            status: 'error',
+            message: 'Missing required parameter: table_name'
+        });
+        return;
+    }
+
+    var listView = getListView(tableName);
+
+    if (listView.status === 'error') {
+        response.setStatus(404);
+        response.setBody({
+            status: 'error',
+            message: listView.message
+        });
+        return;
+    }
+
+    var schemaResult = getTableSchema(listView.elements, tableName);
+
+    response.setStatus(200);
+    response.setBody({
+        status: 'success',
+        message: 'Schema retrieved successfully.',
+        schema: schemaResult.schema,
+        fields: schemaResult.fieldList,
+        tableHeader: schemaResult.tableHeader
+    });
+
+    // Function to get the list view elements
+    function getListView(tableName) {
+        var listViewGR = new GlideRecord('sys_ui_list');
+        listViewGR.addQuery('name', tableName);
+        listViewGR.addQuery('view', "Default view");
+        listViewGR.query();
+
+        if (!listViewGR.hasNext()) {
+            return {
+                status: 'error',
+                message: 'No list view found for the given table: ' + tableName,
+                elements: []
+            };
+        }
+
+        var result = {
+            status: 'success',
+            message: 'List view found for the given table.',
+            elements: []
+        };
+
+        while (listViewGR.next()) {
+            var sysId = listViewGR.sys_id.toString();
+
+            var listElementGR = new GlideRecord('sys_ui_list_element');
+            listElementGR.addQuery('list_id', sysId);
+            listElementGR.orderBy('position');
+            listElementGR.query();
+
+            while (listElementGR.next()) {
+                result.elements.push(listElementGR.element.toString());
+            }
+        }
+
+        return result;
+    }
+
+    // Optimized function to get the table schema, field list, and table header
+    function getTableSchema(elements, tableName) {
+        var schema = [];
+        var fieldList = [];
+        var tableHeader = [];
+
+        elements.forEach(function(element) {
+            var fieldGR = new GlideRecord('sys_dictionary');
+            fieldGR.addQuery('name', tableName);
+            fieldGR.addQuery('element', element);
+            fieldGR.query();
+
+            while (fieldGR.next()) {
+                var fieldName = element;
+                var fieldLabel = fieldGR.getValue('sys_name');
+                var fieldType = fieldGR.getValue('internal_type');
+
+                schema.push({
+                    element: fieldName,
+                    label: fieldLabel,
+                    type: fieldType
+                });
+
+                fieldList.push(fieldName);
+                tableHeader.push(fieldLabel);
+            }
+        });
+
+        return {
+            schema: schema,
+            fieldList: fieldList.join(','),
+            tableHeader: tableHeader
+        };
+    }
+
+})(request, response);
+]]></operation_script>
+        <operation_uri>/api/x_omni_server/service/table-schema</operation_uri>
+        <produces>application/json,application/xml,text/xml</produces>
+        <produces_customized>false</produces_customized>
+        <relative_path>/table-schema</relative_path>
+        <request_example/>
+        <requires_acl_authorization>false</requires_acl_authorization>
+        <requires_authentication>true</requires_authentication>
+        <requires_snc_internal_role>false</requires_snc_internal_role>
+        <short_description/>
+        <sys_class_name>sys_ws_operation</sys_class_name>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2024-08-28 20:24:30</sys_created_on>
+        <sys_id>5c74ab65335c1e104890955a7e5c7b8a</sys_id>
+        <sys_mod_count>7</sys_mod_count>
+        <sys_name>GetTableSchema</sys_name>
+        <sys_package display_value="Omni Server" source="x_omni_server">0db9bcad3b274a101052e5d964e45a21</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="Omni Server">0db9bcad3b274a101052e5d964e45a21</sys_scope>
+        <sys_update_name>sys_ws_operation_5c74ab65335c1e104890955a7e5c7b8a</sys_update_name>
+        <sys_updated_by>Marc.Mouries</sys_updated_by>
+        <sys_updated_on>2024-08-29 01:18:30</sys_updated_on>
+        <web_service_definition display_value="service">d65d932ffb8096107b04ff4655efdc28</web_service_definition>
+        <web_service_version/>
+    </sys_ws_operation>
+</record_update>
