@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sys_script_include">
+    <sys_script_include action="INSERT_OR_UPDATE">
+        <access>package_private</access>
+        <active>true</active>
+        <api_name>x_omni_server.RestResourceTester</api_name>
+        <caller_access/>
+        <client_callable>false</client_callable>
+        <description/>
+        <name>RestResourceTester</name>
+        <script><![CDATA[var RestResourceTester = Class.create();
+RestResourceTester.prototype = {
+    initialize: function() {},
+
+    // Generic function to call a REST API with a base path and parameters
+    call: function(basePath, parameters, method, payload) {
+        var instanceUrl = gs.getProperty('glide.servlet.uri');
+        for (var key in parameters) {
+            basePath = basePath.replace('{' + key + '}', parameters[key]);
+        }
+        var endpoint = instanceUrl + basePath;
+
+        var restMessage = new sn_ws.RESTMessageV2();
+        restMessage.setHttpMethod(method);
+        restMessage.setEndpoint(endpoint);
+
+        if (payload) {
+            restMessage.setRequestBody(JSON.stringify(payload));
+        }
+
+        restMessage.setRequestHeader('Accept', 'application/json');
+        restMessage.setRequestHeader('Content-Type', 'application/json');
+        restMessage.setBasicAuth('username', 'password'); // Replace with actual credentials
+
+        var response = restMessage.execute();
+        var responseBody = response.getBody();
+        gs.info('Response from REST API: ' + responseBody);
+
+        return responseBody;
+    },
+
+    // Function to look up a record with specific fields in a table by sys_id
+    lookupRecord: function(tableName, sysId, fieldList) {
+        var gr = new GlideRecord(tableName);
+        if (gr.get(sysId)) {
+            var result = {};
+            fieldList.forEach(function(field) {
+                if (gr.isValidField(field)) {
+                    result[field] = gr.getValue(field);
+                } else {
+                    gs.error('Invalid field: ' + field);
+                }
+            });
+            return result;
+        } else {
+            gs.error('Record not found: ' + sysId);
+            return null;
+        }
+    },
+
+    // Function to get the audit log of changes made to a record's field (e.g., short_description)
+    getAuditLog: function(tableName, sysId, fieldName) {
+        var auditGr = new GlideRecord('sys_audit');
+        auditGr.addQuery('documentkey', sysId); 
+        auditGr.addQuery('tablename', tableName); 
+        auditGr.addQuery('fieldname', fieldName); 
+        auditGr.orderByDesc('sys_created_on');
+        auditGr.query();
+
+        var auditLogs = [];
+        while (auditGr.next()) {
+            auditLogs.push({
+                changedBy: auditGr.getValue('user'),
+                oldValue: auditGr.getValue('oldvalue'),
+                newValue: auditGr.getValue('newvalue'),
+                changeDate: auditGr.getValue('sys_created_on')
+            });
+        }
+        return auditLogs;
+    },
+
+    type: 'RestResourceTester'
+};]]></script>
+        <sys_class_name>sys_script_include</sys_class_name>
+        <sys_created_by>Marc.Mouries</sys_created_by>
+        <sys_created_on>2024-09-28 21:20:41</sys_created_on>
+        <sys_id>4f78ebe7fb7c5e107b04ff4655efdce3</sys_id>
+        <sys_mod_count>3</sys_mod_count>
+        <sys_name>RestResourceTester</sys_name>
+        <sys_package display_value="Omni Server" source="x_omni_server">0db9bcad3b274a101052e5d964e45a21</sys_package>
+        <sys_policy>read</sys_policy>
+        <sys_scope display_value="Omni Server">0db9bcad3b274a101052e5d964e45a21</sys_scope>
+        <sys_update_name>sys_script_include_4f78ebe7fb7c5e107b04ff4655efdce3</sys_update_name>
+        <sys_updated_by>Marc.Mouries</sys_updated_by>
+        <sys_updated_on>2024-09-28 21:58:11</sys_updated_on>
+    </sys_script_include>
+</record_update>

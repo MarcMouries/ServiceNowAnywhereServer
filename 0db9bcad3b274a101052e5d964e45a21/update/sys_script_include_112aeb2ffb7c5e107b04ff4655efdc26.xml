@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sys_script_include">
+    <sys_script_include action="INSERT_OR_UPDATE">
+        <access>package_private</access>
+        <active>true</active>
+        <api_name>x_omni_server.TestScriptedRESTAPIs</api_name>
+        <caller_access/>
+        <client_callable>false</client_callable>
+        <description/>
+        <name>TestScriptedRESTAPIs</name>
+        <script><![CDATA[/**
+ * Contains tests for the Scripted REST APIs.
+ * Run it with: ...
+ */
+
+var TestScriptedRESTAPIs = Class.create();
+TestScriptedRESTAPIs.prototype = {
+    type: 'TestScriptedRESTAPIs',
+
+    initialize: function() {
+        // Create an instance of the Script Include
+        this.restTester = new RestResourceTester();
+    },
+
+    testAll: function() {
+        this.testUpdate();
+    },
+
+    // Test function for updating a record
+    testUpdate: function() {
+        // Step 1: Define the table, sys_id, and fieldList to lookup
+        var tableName = 'x_omni_demo_inspct_inspection';
+        var sysId = '8b263a1b338092104890955a7e5c7b5d';
+        var fieldList = ['short_description', 'state', 'assigned_to']; // fields to retrieve
+
+        // Step 2: Lookup the record with the specified fieldList
+        var originalRecordData = this.restTester.lookupRecord(tableName, sysId, fieldList);
+        gs.info('Record data before update: ' + JSON.stringify(originalRecordData));
+
+
+        // Step 3: Define the API call for updating the record
+        var basePath = '/api/x_omni_server/service/update/{table_name}/{sys_id}';
+        var parameters = {
+            table_name: tableName,
+            sys_id: sysId
+        };
+        var method = 'PATCH';
+        var payload = {
+            short_description: 'Tennessee River'
+        };
+
+        // Step 4: Call the REST API to update the record
+        var response = this.restTester.call(basePath, parameters, method, payload);
+        gs.info('Response from update: ' + response);
+
+        // Step 5: Verify the update by looking up the record again
+        var updatedRecordData = this.restTester.lookupRecord(tableName, sysId, fieldList);
+        gs.info('Record data after update: ' + JSON.stringify(updatedRecordData));
+
+        // Step 6: Assert that the short_description has been updated to the value in the payload
+        for (var key in payload) {
+            if (payload.hasOwnProperty(key)) {
+                if (updatedRecordData[key] === payload[key]) {
+                    gs.info('Test passed: ' + key + ' was updated correctly.');
+                } else {
+                    gs.error('Test failed: Expected ' + key + ' to be "' + payload[key] + '" but found "' + updatedRecordData[key] + '"');
+                }
+            }
+        }
+
+        // Step 7: Check the audit log to verify the change
+        let auditLog = this.restTester.getAuditLog(tableName, sysId, 'short_description');
+        if (auditLog.length > 0) {
+            gs.info('Audit log for short_description changes: ' + JSON.stringify(auditLog));
+        } else {
+            gs.error('Audit log verification failed: No changes logged for short_description.');
+        }
+
+        // Step 8: Rollback changes to the original values using only the modified fields
+        var rollbackPayload = {};
+        for (let key in payload) {
+            if (payload.hasOwnProperty(key)) {
+                rollbackPayload[key] = originalRecordData[key]; // Use the original value for rollback
+            }
+        }
+
+    var rollbackResponse = this.restTester.call(basePath, parameters, method, rollbackPayload);
+        gs.info('Rollback response: ' + rollbackResponse);
+
+        // Verify the rollback by looking up the record again
+        var rolledBackRecordData = this.restTester.lookupRecord(tableName, sysId, fieldList);
+        gs.info('Record data after rollback: ' + JSON.stringify(rolledBackRecordData));
+
+        // Assert that the rollback was successful
+        for (var key in payload) {
+            if (rolledBackRecordData[key] === originalRecordData[key]) {
+                gs.info('Rollback successful: ' + key + ' restored to original value.');
+            } else {
+                gs.error('Rollback failed: Expected ' + key + ' to be "' + originalRecordData[key] + '" but found "' + rolledBackRecordData[key] + '"');
+            }
+        }
+    },
+};]]></script>
+        <sys_class_name>sys_script_include</sys_class_name>
+        <sys_created_by>Marc.Mouries</sys_created_by>
+        <sys_created_on>2024-09-28 21:31:21</sys_created_on>
+        <sys_id>112aeb2ffb7c5e107b04ff4655efdc26</sys_id>
+        <sys_mod_count>6</sys_mod_count>
+        <sys_name>TestScriptedRESTAPIs</sys_name>
+        <sys_package display_value="Omni Server" source="x_omni_server">0db9bcad3b274a101052e5d964e45a21</sys_package>
+        <sys_policy>read</sys_policy>
+        <sys_scope display_value="Omni Server">0db9bcad3b274a101052e5d964e45a21</sys_scope>
+        <sys_update_name>sys_script_include_112aeb2ffb7c5e107b04ff4655efdc26</sys_update_name>
+        <sys_updated_by>Marc.Mouries</sys_updated_by>
+        <sys_updated_on>2024-09-28 21:52:40</sys_updated_on>
+    </sys_script_include>
+</record_update>

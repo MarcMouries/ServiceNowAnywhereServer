@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sys_script_include">
+    <sys_script_include action="INSERT_OR_UPDATE">
+        <access>package_private</access>
+        <active>true</active>
+        <api_name>x_omni_server.UserAccessUtils</api_name>
+        <caller_access/>
+        <client_callable>false</client_callable>
+        <description>var userAccessUtils = new UserAccessUtils();&#13;
+var username = "Jon.Off";&#13;
+var userSysId = userAccessUtils.getUserSysId(username);&#13;
+if (userSysId) {&#13;
+    var userRoles = userAccessUtils.getUserRoles(userSysId);&#13;
+    gs.info("User roles = " + JSON.stringify(userRoles, null, 2));&#13;
+    var userApps = userAccessUtils.getListOfAppsUserHasAccess(username);&#13;
+    gs.info("User apps = " + JSON.stringify(userApps, null, 2));&#13;
+} else {&#13;
+    gs.info("User not found: " + username);&#13;
+}</description>
+        <name>UserAccessUtils</name>
+        <script><![CDATA[var UserAccessUtils = Class.create();
+UserAccessUtils.prototype = {
+    initialize: function() {},
+
+    getListOfAppsUserHasAccess: function(username) {
+        var userSysId = this.getUserSysId(username);
+        if (!userSysId) {
+            return null;
+        }
+
+        var userRoles = this.getUserRoles(userSysId);
+
+        if (userRoles.size === 0) {
+            return null;
+        }
+
+        var accessList = [];
+        var appGR = new GlideRecord('sys_scope');
+        appGR.orderBy('name');
+        appGR.query();
+
+        while (appGR.next()) {
+            var appName = appGR.name.toString();
+            var appScope = appGR.scope.toString();
+
+            if (this.userHasAccessToApplication(userRoles, appScope)) {
+                accessList.push({
+                    appName: appName,
+                    appScope: appScope
+                });
+            }
+        }
+
+        return accessList;
+    },
+
+    getUserSysId: function(username) {
+        var userGR = new GlideRecord('sys_user');
+        userGR.addQuery('user_name', username);
+        userGR.query();
+
+        if (userGR.next()) {
+            return userGR.sys_id.toString();
+        }
+        return null;
+    },
+
+    getUserRoles: function(userSysId) {
+        var userRoles = new Set();
+        var rolesGR = new GlideRecord('sys_user_has_role');
+        rolesGR.addQuery('user', userSysId);
+        rolesGR.query();
+
+        while (rolesGR.next()) {
+            userRoles.add(rolesGR.role.name.toString());
+        }
+        return Array.from(userRoles);
+    },
+
+    userHasAccessToApplication: function(userRoles, appScope) {
+        return Array.from(userRoles).some(function(role) {
+            return role.includes(appScope);
+        });
+    },
+
+    type: 'UserAccessUtils'
+};]]></script>
+        <sys_class_name>sys_script_include</sys_class_name>
+        <sys_created_by>Marc.Mouries</sys_created_by>
+        <sys_created_on>2024-10-03 17:31:44</sys_created_on>
+        <sys_id>cc92a851fbc512107b04ff4655efdc6e</sys_id>
+        <sys_mod_count>7</sys_mod_count>
+        <sys_name>UserAccessUtils</sys_name>
+        <sys_package display_value="Omni Server" source="x_omni_server">0db9bcad3b274a101052e5d964e45a21</sys_package>
+        <sys_policy>read</sys_policy>
+        <sys_scope display_value="Omni Server">0db9bcad3b274a101052e5d964e45a21</sys_scope>
+        <sys_update_name>sys_script_include_cc92a851fbc512107b04ff4655efdc6e</sys_update_name>
+        <sys_updated_by>Marc.Mouries</sys_updated_by>
+        <sys_updated_on>2024-10-03 17:49:16</sys_updated_on>
+    </sys_script_include>
+</record_update>
