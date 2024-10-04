@@ -8,69 +8,25 @@
         <http_method>GET</http_method>
         <name>GetUserAppsAccess</name>
         <operation_script><![CDATA[(function process(request, response) {
-    var username = request.queryParams.username; // Get the username from the request
+    var username = request.queryParams.username;
 
     if (!username) {
         response.setStatus(400);
-        response.setBody({ error: "Missing 'username' parameter." });
+        response.setBody({error: "Missing 'username' parameter." });
         return;
     }
 
-    var userApps = getUserAppsAccess(username);
+    var userAccessUtils = new UserAccessUtils();
+    var userApps = userAccessUtils.getListOfAppsUserHasAccess(username);
 
     if (userApps === null) {
         response.setStatus(404);
-        response.setBody({ error: "User not found or no roles assigned." });
+        response.setBody({error: "User not found or no roles assigned."});
     } else {
         response.setBody(userApps);
     }
 
-    function getUserAppsAccess(username) {
-        var userGR = new GlideRecord('sys_user');
-        userGR.addQuery('user_name', username);
-        userGR.query();
-
-        if (!userGR.next()) {
-            return null;
-        }
-
-        var userSysId = userGR.sys_id.toString();
-        var userRoles = new Set();
-        var rolesGR = new GlideRecord('sys_user_has_role');
-        rolesGR.addQuery('user', userSysId);
-        rolesGR.query();
-
-        while (rolesGR.next()) {
-            userRoles.add(rolesGR.role.name.toString());
-        }
-
-        if (userRoles.size === 0) {
-            return null;
-        }
-
-        var accessList = [];
-        var appGR = new GlideRecord('sys_scope');
-		appGR.orderBy('name');
-        appGR.query();
-
-        while (appGR.next()) {
-            var appName = appGR.name.toString();
-            var appScope = appGR.scope.toString();
-
-            if (userHasAccessToApplication(userRoles, appScope)) {
-                accessList.push({ appName: appName, appScope: appScope });
-            }
-        }
-
-        return accessList;
-    }
-
-    function userHasAccessToApplication(userRoles, appScope) {
-        return Array.from(userRoles).some(role => role.includes(appScope));
-    }
-
-})(request, response);
-]]></operation_script>
+})(request, response);]]></operation_script>
         <operation_uri>/api/x_omni_server/service/user-apps-access</operation_uri>
         <produces>application/json</produces>
         <produces_customized>true</produces_customized>
@@ -84,14 +40,14 @@
         <sys_created_by>Marc.Mouries</sys_created_by>
         <sys_created_on>2024-08-22 14:25:19</sys_created_on>
         <sys_id>0e8623abfbc096107b04ff4655efdce9</sys_id>
-        <sys_mod_count>2</sys_mod_count>
+        <sys_mod_count>3</sys_mod_count>
         <sys_name>GetUserAppsAccess</sys_name>
         <sys_package display_value="Omni Server" source="x_omni_server">0db9bcad3b274a101052e5d964e45a21</sys_package>
         <sys_policy/>
         <sys_scope display_value="Omni Server">0db9bcad3b274a101052e5d964e45a21</sys_scope>
         <sys_update_name>sys_ws_operation_0e8623abfbc096107b04ff4655efdce9</sys_update_name>
         <sys_updated_by>Marc.Mouries</sys_updated_by>
-        <sys_updated_on>2024-08-23 19:09:24</sys_updated_on>
+        <sys_updated_on>2024-10-04 01:32:07</sys_updated_on>
         <web_service_definition display_value="service">d65d932ffb8096107b04ff4655efdc28</web_service_definition>
         <web_service_version/>
     </sys_ws_operation>
